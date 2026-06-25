@@ -19,32 +19,120 @@ pub mod fc {
     }
 
     pub mod gmr {
+        pub trait Symbolizable {}
+
+        impl Symbolizable for char {}
+        impl Symbolizable for Vec<char> {}
+        impl Symbolizable for String {}
+
         mod symbol {
+            use crate::fc::gmr::Symbolizable;
             use std::collections::{HashMap, HashSet};
 
-            struct SymbomManager {
+            struct SymbolManager<T>
+            where
+                T: Symbolizable + Eq + PartialEq + PartialOrd + Ord + Clone,
+            {
                 used_ids: HashSet<u64>,
                 next_unused_id: u64,
-                id_char_map: HashMap<u64, char>,
+                id_symbol_map: HashMap<u64, T>,
             }
 
-            impl SymbomManager {
-                pub fn new() -> SymbomManager {
+            impl<T> SymbolManager<T>
+            where
+                T: Symbolizable + Eq + PartialEq + PartialOrd + Ord + Clone,
+            {
+                pub fn query_id_by_symbol(&self, symbol: &T) -> Option<u64> {
+                    self.id_symbol_map
+                        .iter()
+                        .find(|&(_, c)| c.eq(symbol))
+                        .map(|(&id, _)| id)
+                }
+
+                pub fn get_symbol_by_id(&self, id: u64) -> Option<T> {
+                    self.id_symbol_map.get(&id).cloned()
+                }
+
+                pub fn register_symbol(&mut self, symbol: T) -> u64 {
+                    if let Some(id) = self.query_id_by_symbol(&symbol) {
+                        return id;
+                    }
+
+                    let new_id = loop {
+                        if self.next_unused_id == 0 {
+                            panic!("No more unused IDs available.");
+                        }
+
+                        let id = self.next_unused_id;
+
+                        if !self.used_ids.contains(&id) {
+                            break id;
+                        }
+
+                        self.next_unused_id += 1;
+                    };
+
+                    self.used_ids.insert(new_id);
+                    self.id_symbol_map.insert(new_id, symbol);
+
+                    new_id
+                }
+
+                pub fn unregister_symbol(&mut self, symbol: &T) -> Option<u64> {
+                    if let Some(id) = self.query_id_by_symbol(symbol) {
+                        self.used_ids.remove(&id);
+                        self.id_symbol_map.remove(&id);
+                        return Some(id);
+                    }
+                    None
+                }
+            }
+
+            impl SymbolManager<char> {
+                fn new() -> Self {
                     let mut used_ids = HashSet::new();
                     used_ids.insert(0);
 
-                    let mut id_char_map = HashMap::new();
-                    id_char_map.insert(0, 'ε');
+                    let mut id_symbol_map = HashMap::new();
+                    id_symbol_map.insert(0, 'ε');
 
                     Self {
                         used_ids: used_ids,
                         next_unused_id: 1,
-                        id_char_map: id_char_map,
+                        id_symbol_map: id_symbol_map,
                     }
                 }
+            }
 
-                pub fn query_id_by_char(ch: char) -> u64 {
-                    id_
+            impl SymbolManager<Vec<char>> {
+                fn new() -> Self {
+                    let mut used_ids = HashSet::new();
+                    used_ids.insert(0);
+
+                    let mut id_symbol_map = HashMap::new();
+                    id_symbol_map.insert(0, vec!['ε']);
+
+                    Self {
+                        used_ids: used_ids,
+                        next_unused_id: 1,
+                        id_symbol_map: id_symbol_map,
+                    }
+                }
+            }
+
+            impl SymbolManager<String> {
+                fn new() -> Self {
+                    let mut used_ids = HashSet::new();
+                    used_ids.insert(0);
+
+                    let mut id_symbol_map = HashMap::new();
+                    id_symbol_map.insert(0, String::from("ε"));
+
+                    Self {
+                        used_ids: used_ids,
+                        next_unused_id: 1,
+                        id_symbol_map: id_symbol_map,
+                    }
                 }
             }
         }
@@ -56,10 +144,6 @@ pub mod fc {
 // Unit tests
 
 mod test {
-    use std::process::Output;
-
-    use super::*;
-
     #[test]
     fn test_split_string_by_line_break_no_space() {
         let input = "expression1\nexpression2\n\n\nexpression3";
