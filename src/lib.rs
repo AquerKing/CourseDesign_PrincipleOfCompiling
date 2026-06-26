@@ -288,14 +288,6 @@ pub mod fc {
             let mut first_id_sets: HashMap<u64, HashSet<u64>> = HashMap::new();
             let mut follow_id_sets: HashMap<u64, HashSet<u64>> = HashMap::new();
 
-            // let nonterminator_ids = context
-            //     .symbol_manager
-            //     .nonterminator_symbol
-            //     .iter()
-            //     .filter(|&id| context.is_nonterminator(*id))
-            //     .map(|&id| id)
-            //     .collect::<Vec<SymbolId>>();
-
             // Calculate first sets
             loop {
                 let mut changed = false;
@@ -366,20 +358,6 @@ pub mod fc {
                     {
                         changed = true;
                     }
-
-                    println!(
-                        "First set for {}: {:?}",
-                        context
-                            .symbol_manager
-                            .get_symbol_by_id(expr.left_side)
-                            .unwrap(),
-                        first_id_sets
-                            .get(&expr.left_side)
-                            .unwrap()
-                            .iter()
-                            .map(|&id| context.symbol_manager.get_symbol_by_id(id))
-                            .collect::<Vec<_>>()
-                    );
                 }
 
                 if !changed {
@@ -432,9 +410,23 @@ pub mod fc {
                                     .or_insert_with(HashSet::new)
                                     .insert(next_symbol_id);
                             } else {
-                                let mut next_symbol_id = next_symbol_id;
+                                // Scan the suffix starting at the next symbol and
+                                // accumulate FIRST sets (minus epsilon). If the
+                                // entire suffix is nullable, also add FOLLOW(left_side).
+                                let mut all_nullable = true;
 
-                                while context.is_nonterminator(next_symbol_id) {
+                                for j in i + 1..expr.right_side.len() {
+                                    let next_symbol_id = expr.right_side[j];
+
+                                    if !context.is_nonterminator(next_symbol_id) {
+                                        follow_id_sets
+                                            .entry(symbol_id)
+                                            .or_insert_with(HashSet::new)
+                                            .insert(next_symbol_id);
+                                        all_nullable = false;
+                                        break;
+                                    }
+
                                     let next_symbol_first_set = first_id_sets
                                         .entry(next_symbol_id)
                                         .or_insert_with(HashSet::new)
@@ -447,19 +439,22 @@ pub mod fc {
                                             next_symbol_first_set.iter().filter(|&&id| id != 0),
                                         );
 
-                                    if next_symbol_first_set.contains(&0) {
-                                        next_symbol_id += 1;
-                                        continue;
-                                    } else {
+                                    if !next_symbol_first_set.contains(&0) {
+                                        all_nullable = false;
                                         break;
                                     }
                                 }
 
-                                if !context.is_nonterminator(next_symbol_id) {
+                                if all_nullable {
+                                    let left_side_follow_set = follow_id_sets
+                                        .entry(left_side_id)
+                                        .or_insert_with(HashSet::new)
+                                        .clone();
+
                                     follow_id_sets
                                         .entry(symbol_id)
                                         .or_insert_with(HashSet::new)
-                                        .insert(next_symbol_id);
+                                        .extend(left_side_follow_set);
                                 }
                             }
                         }

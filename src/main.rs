@@ -35,8 +35,21 @@ fn main() {
     let (first_sets, follow_sets) = calculate_first_follow_sets(&context);
 
     let contents = format!(
-        "First Sets:\n{:?}\n\nFollow Sets:\n{:?}",
-        first_sets, follow_sets
+        "First Sets:\n{}\n\nFollow Sets:\n{}",
+        {
+            first_sets
+                .iter()
+                .map(|(k, v)| format!("{}: {:?}", k, v))
+                .collect::<Vec<_>>()
+                .join("\n")
+        },
+        {
+            follow_sets
+                .iter()
+                .map(|(k, v)| format!("{}: {:?}", k, v))
+                .collect::<Vec<_>>()
+                .join("\n")
+        }
     );
     std::fs::write(args.output.unwrap_or_else(|| "output.txt".into()), contents).unwrap();
 }
